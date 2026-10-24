@@ -1,75 +1,38 @@
-# 🎼 Reconocedor de Escalas Tonales
+# Reconocedor de escalas tonales
 
-Sistema web que analiza un sonido (micrófono, archivo o escala sintetizada) y
-determina su **escala tonal**: la tónica y si es **mayor o menor**.
-Todo el procesamiento pesado corre en un **Web Worker**.
+Aplicación web para estimar la tónica y el modo (mayor o menor) de una escala a partir de una grabación con el micrófono.
 
-## Estructura del proyecto
+## Empezar
 
-```
-reconocedor-escalas/
-├── index.html            → interfaz de usuario
-├── css/styles.css        → estilos
-└── js/
-    ├── app.js            → hilo principal: Web Audio API (captura, síntesis, decodificación) y gráficos
-    └── audio-worker.js   → WEB WORKER: FFT + autocorrelación + detección de escala
-```
+Abre la [aplicación web](http://darukeshi.github.io/Escala-tonal/) en un navegador moderno. Para usar el micrófono, permite el acceso cuando el navegador lo solicite.
 
-## Cómo funciona (resumen teórico)
+### Ejecutar en tu computadora
 
-1. **Web Audio API** — `getUserMedia`/`MediaRecorder`/`decodeAudioData`/osciladores
-   capturan el sonido y lo convierten a PCM mono (`Float32Array`).
-2. **Web Worker** — el PCM se transfiere al worker (`postMessage` con
-   *transferable*, sin copia) para no congelar la interfaz.
-3. **Transformada de Fourier (FFT radix-2)** — obtiene el espectro de cada
-   cuadro de 4096 muestras (ventana de Hann) y construye un *vector cromático*:
-   la energía de los picos (incluyendo armónicos) se acumula en su clase de
-   altura (Do, Do#, Re…).
-4. **Autocorrelación normalizada (estilo NSDF/McLeod)** — detecta la altura
-   tonal f0 de cada cuadro buscando el primer pico ≥ 85 % del máximo e
-   interpolando parabólicamente: así se evita el clásico error de octava y el
-   sesgo hacia retrasos cortos.
-5. **Detección de la escala** — se fusionan ambas fuentes en un histograma
-   cromático y se prueban las **12 tónicas × {mayor, menor}** contra las
-   plantillas de intervalos:
-   - Mayor: `T T ST T T T ST` → semitonos `[0,2,4,5,7,9,11]`
-   - Menor: `T ST T T ST T T` → semitonos `[0,2,3,5,7,8,10]`
+Si prefieres ejecutarla localmente, sirve la carpeta del proyecto por HTTP; no abras `index.html` directamente, porque el navegador necesita un servidor para cargar el analizador de audio.
 
-   Gana la combinación con más energía dentro de la plantilla (las notas
-   exteriores descontán). La **confianza** es el porcentaje de energía
-   cromática que cae dentro de la escala elegida.
-
-## Ejecutar en tu PC
-
-Los Web Workers **no funcionan abriendo `index.html` con doble clic**
-(`file://`), y el micrófono exige HTTPS o `localhost`. Sirve la carpeta con
-cualquiera de estas opciones:
+Con Python, ejecuta desde la carpeta del proyecto:
 
 ```bash
-# Opción A: Node.js
-npx serve reconocedor-escalas
-
-# Opción B: Python
-cd reconocedor-escalas
 python -m http.server 8000
 ```
 
-Abre `http://localhost:8000`.
+Después abre [http://localhost:8000](http://localhost:8000). Para detener el servidor, vuelve a la terminal y pulsa `Ctrl+C`.
 
-## Cómo probarlo rápido (sin instrumento)
+## Analizar una escala
 
-1. Pulsa **«Generar y analizar»** → el sistema compone una escala con tónica
-   aleatoria (no revelada), suena por los parlantes, se autograbó y el worker
-   debe acertar la escala.
-2. Luego prueba **cantar una escala** con el micrófono (do–re–mi–fa–sol–la–si–do)
-   o **subir un archivo WAV/MP3** de una escala de un piano.
+Usa el micrófono: pulsa **Iniciar grabación**, canta o toca una escala y pulsa **Detener y analizar**. La primera vez, permite el acceso al micrófono.
 
-## Alojar el proyecto (gratis, por archivo estáticos)
+## Interpretar el resultado
 
-| Servicio | Pasos |
-|---|---|
-| **GitHub Pages** (recomendado para entrega) | 1. Crea un repositorio en GitHub. 2. Sube todo el contenido de la carpeta. 3. En **Settings → Pages**, elige rama `main` / carpeta `(root)`. 4. Tu URL será `https://TUUSUARIO.github.io/REPO/` |
-| **Netlify Drop** | Entra a `app.netlify.com/drop` y arrastra la carpeta completa. URL instantánea con HTTPS. |
-| **Vercel** | `npx vercel` dentro de la carpeta y sigue el asistente. |
+El resultado incluye la tónica y el modo estimados, las notas de la escala y un porcentaje de confianza. También muestra las notas detectadas por segmentos, un histograma cromático y la forma de onda.
 
-Ninguno requiere servidor ni base de datos: el proyecto es 100 % estático.
+La confianza representa la proporción de energía cromática que coincide con la escala elegida; no es una garantía de que la detección sea correcta. El análisis puede variar según la afinación, el ruido de fondo, la calidad de la grabación y los instrumentos o sonidos mezclados.
+
+## Consejos y solución de problemas
+
+- Para usar el micrófono, abre la aplicación desde `localhost` o desde un sitio HTTPS y acepta el permiso del navegador.
+- Graba una escala completa con notas claras y sostenidas, en un entorno silencioso. Mantén el micrófono cerca de la fuente de sonido sin saturarlo.
+
+## Privacidad
+
+El audio se procesa en el navegador y se utiliza para generar el resultado. La aplicación no lo sube a un servidor.

@@ -2,7 +2,7 @@
    app.js — HILO PRINCIPAL
    ----------------------------------------------------------------------------
    Responsabilidades (NADA de matemática pesada vive aquí, eso va al Worker):
-     - Capturar audio con la Web Audio API: micrófono, archivo o síntesis.
+     - Capturar audio del micrófono con la Web Audio API.
      - Convertir el audio a PCM mono y enviarlo al Web Worker.
      - Recibir el resultado y pintarlo en pantalla.
    ============================================================================ */
@@ -15,13 +15,13 @@ let grabando = false;
 let analizando = false;
 
 const refs = {};
-["btnMic", "btnDetener", "btnPrueba", "selModo", "inputArchivo", "micEstado",
+["btnMic", "btnDetener", "micEstado",
  "cardResultado", "nombreEscala", "confianza", "notasEscala", "notasDetectadas", "canvasHist",
  "canvasOnda", "tablaSegmentos", "log"].forEach((id) => (refs[id] = document.getElementById(id)));
 
 /* ---------- Arranque ---------- */
 document.addEventListener("DOMContentLoaded", () => {
-  log("Sistema iniciado. Esperando una fuente de audio…");
+  log("Sistema iniciado. Esperando el micrófono…");
 
   // El Worker se crea a partir del script; su ejecución es CONCURRENTE al hilo
   // principal de la página (aquí está el Web Worker del enunciado).
@@ -37,15 +37,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   refs.btnMic.addEventListener("click", iniciarMicrofono);
   refs.btnDetener.addEventListener("click", detenerGrabacion);
-  refs.btnPrueba.addEventListener("click", generarEscalaDePrueba);
-  refs.inputArchivo.addEventListener("change", () => {
-    const f = refs.inputArchivo.files[0];
-    if (f) analizarBlob(f, "Archivo: " + f.name);
-  });
 });
 
 /* ========================================================================== */
-/* FUENTE 1: MICRÓFONO (Web Audio API + MediaRecorder)                        */
+/* MICRÓFONO (Web Audio API + MediaRecorder)                                  */
 /* ========================================================================== */
 
 async function iniciarMicrofono() {
@@ -61,7 +56,7 @@ async function iniciarMicrofono() {
       grabando = false;
       refs.micEstado.textContent = "Grabación detenida. Analizando…";
       refs.micEstado.classList.remove("rec");
-      analizarBlob(new Blob(chunksMic), "Grabación de micrófono");
+      analizarGrabacion(new Blob(chunksMic));
       flujo.getTracks().forEach((t) => t.stop());
     };
     var chunksMic = []; // se llena mientras graba
@@ -88,68 +83,6 @@ function detenerGrabacion() {
 }
 
 /* ========================================================================== */
-/* FUENTE 3: ESCALA SINTETIZADA DE PRUEBA                                     */
-/* ========================================================================== */
-
-/* Genere una escala completa (7 grados + repetición de la tónica), la graba
-   con un MediaRecorder interno (MediaStreamDestination) y manda a analizar.
-   Esto permite demostrar el sistema SIN micrófono. */
-async function generarEscalaDePrueba() {
-  if (analizando) return;
-  iniciarAnalisis();
-
-  const ac = ctx();
-  const modoSel = refs.selModo.value;                    // aleatoria | mayor | menor
-  const tonica = Math.floor(Math.random() * 12);         // tónica secreta 0..11
-  const modo = modoSel === "aleatoria" ? (Math.random() < 0.5 ? "mayor" : "menor") : modoSel;
-
-  const grados = modo === "mayor" ? [0, 2, 4, 5, 7, 9, 11, 12] : [0, 2, 3, 5, 7, 8, 10, 12];
-  const dur = 0.45, sep = 0.15;
-
-  // Destino invisible: el sintetizador SUENA en los parlantes Y se graba a la vez
-  const dest = ac.createMediaStreamDestination();
-  const grabadora = new MediaRecorder(dest.stream);
-
-  const chunks = [];
-  grabadora.ondataavailable = (e) => chunks.push(e.data);
-  grabadora.onstop = async () => {
-    log("🧪 Síntesis terminada; enviando al Web Worker…");
-    analizarBlob(new Blob(chunks), "Escala sintetizada");
-  };
-
-  let t = ac.currentTime + 0.1;
-  const inicio = t;
-  grados.forEach((g, k) => {
-    const osc = ac.createOscillator();
-    const ganancia = ac.createGain();
-    osc.type = "triangle";
-    const midi = 60 + tonica + g;                        // Do central + tónica aleatoria
-    osc.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
-
-    // Envolvente suave para evitar chasquidos
-    ganancia.gain.setValueAtTime(0.0001, t);
-    ganancia.gain.linearRampToValueAtTime(0.35, t + 0.03);
-    ganancia.gain.setValueAtTime(0.35, t + dur - 0.05);
-    ganancia.gain.exponentialRampToValueAtTime(0.001, t + dur);
-
-    osc.connect(ganancia);
-    ganancia.connect(ac.destination); // audible para el usuario
-    ganancia.connect(dest);           // grabado para el análisis
-    osc.start(t);
-    osc.stop(t + dur);
-    t += dur + sep;
-  });
-
-  const durTotal = t - inicio;
-  grabadora.start(inicio);
-  grabadora.stop(inicio + durTotal);
-
-  log("🎹 Sintetizando escala " + modo + " (tónica oculta). Duración ≈ "
-      + durTotal.toFixed(1) + " s. Escúchala y compara el resultado final.");
-  refs.micEstado.textContent = "Escala de prueba sonando…";
-}
-
-/* ========================================================================== */
 /* CONVERSIÓN A PCM MONO + ENVÍO AL WORKER                                     */
 /* ========================================================================== */
 
@@ -159,13 +92,13 @@ function ctx() {
   return audioCtx;
 }
 
-async function analizarBlob(blob, etiqueta) {
+async function analizarGrabacion(blob) {
   if (analizando) return;
   iniciarAnalisis();
   try {
-    log("⏳ Decodificando audio (" + etiqueta + ")…");
+    log("⏳ Decodificando grabación de micrófono…");
     const buffer = await blob.arrayBuffer();
-    const audio = await ctx().decodeAudioData(buffer); // Web Audio API: decodifica MP3/WAV/OGG/WEBM
+    const audio = await ctx().decodeAudioData(buffer);
 
     // Mezclar todos los canales a MONO (promedio)
     let pcm;
@@ -185,7 +118,7 @@ async function analizarBlob(blob, etiqueta) {
     // en lugar de copiarse; luego el worker lo procesa sin bloquear la UI.
     worker.postMessage({ type: "analizar", sampleRate: audio.sampleRate, pcm }, [pcm.buffer]);
   } catch (err) {
-    log("❌ Al decodificar audio: " + err.message, "err");
+    log("❌ Al decodificar la grabación: " + err.message, "err");
     finAnalisis();
   }
 }
@@ -193,7 +126,6 @@ async function analizarBlob(blob, etiqueta) {
 /* ---------- Ciclo de vida de la UI durante el análisis ---------- */
 function iniciarAnalisis() {
   analizando = true;
-  refs.btnPrueba.disabled = true;
   refs.btnMic.disabled = true;
   refs.btnDetener.disabled = true;
   refs.cardResultado.hidden = true;
@@ -201,7 +133,6 @@ function iniciarAnalisis() {
 
 function finAnalisis() {
   analizando = false;
-  refs.btnPrueba.disabled = false;
   refs.btnMic.disabled = false;
 }
 

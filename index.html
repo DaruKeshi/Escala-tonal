@@ -19,39 +19,13 @@
   <main>
     <!-- Fuente 1: Micrófono -->
     <section class="card">
-      <h2>🎤 1. Sonar con el micrófono</h2>
+      <h2>🎤 Sonar con el micrófono</h2>
       <p>Canta o toca la escala (do, re, mi…) y detén la grabación.</p>
       <div class="botones">
         <button id="btnMic">Iniciar grabación</button>
         <button id="btnDetener" disabled>Detener y analizar</button>
       </div>
       <div id="micEstado" class="estado">Micrófono inactivo.</div>
-    </section>
-
-    <!-- Fuente 2: Archivo -->
-    <section class="card">
-      <h2>📁 2. Cargar un archivo de audio</h2>
-      <p>Sube un WAV, MP3 u OGG con la escala grabada.</p>
-      <input type="file" id="inputArchivo" accept="audio/*" />
-    </section>
-
-    <!-- Fuente 3: Escala de prueba -->
-    <section class="card">
-      <h2>🎹 3. Generar escala de prueba</h2>
-      <p>
-        El sistema sintetiza una escala aleatoria (que no te revela), la
-        graba internamente y la analiza. Ideal para demostrar que el
-        algoritmo acierta.
-      </p>
-      <label for="selModo">Tipo de escala a generar: </label>
-      <select id="selModo">
-        <option value="aleatoria">Aleatoria</option>
-        <option value="mayor">Mayor</option>
-        <option value="menor">Menor</option>
-      </select>
-      <div class="botones">
-        <button id="btnPrueba">Generar y analizar</button>
-      </div>
     </section>
 
     <!-- Resultados -->
@@ -99,7 +73,7 @@
     <p>
       Técnicas: <em>Transformada rápida de Fourier (FFT)</em> — contenido
       espectral · <em>Autocorrelación normalizada</em> — altura tonal (f0) ·
-      <em>Web Audio API</em> — captura, síntesis y decodificación ·
+      <em>Web Audio API</em> — captura y decodificación ·
       <em>Web Worker</em> — procesamiento en un hilo aparte.
     </p>
   </footer>
