@@ -222,9 +222,10 @@ function dibujarOnda(pcm) {
   ctx2.strokeStyle = "#6ea8fe";
   ctx2.beginPath();
   const paso = pcm.length / W;
+  const saltoMuestra = Math.max(4, Math.floor(paso / 256));
   for (let x = 0; x < W; x++) {
     let mn = 1, mx = -1;
-    for (let i = Math.floor(x * paso); i < Math.floor((x + 1) * paso); i += 4) {
+    for (let i = Math.floor(x * paso); i < Math.floor((x + 1) * paso); i += saltoMuestra) {
       const v = pcm[i] || 0;
       if (v < mn) mn = v;
       if (v > mx) mx = v;

@@ -26,6 +26,7 @@ const ESCALA_MENOR = [0, 2, 3, 5, 7, 8, 10];        // T ST T T ST T T
 const TAM_FFT    = 4096;  // ventana para el análisis espectral (FFT)
 const SALTO      = 2048;  // hop entre ventanas consecutivas
 const TAM_GRAVE  = 2048;  // ventana para la autocorrelación (más liviana)
+const FACTOR_PITCH = 4;   // reduce el coste de autocorrelación sin afectar el rango de notas
 const NOTA_MIN_HZ = 60;   // rango musical razonable para detectar f0
 const NOTA_MAX_HZ = 1000;
 
@@ -54,6 +55,9 @@ function analizar(pcm, sr) {
   const pitchHist = new Float64Array(12);   // clases de altura detectadas por f0
   const chromaEsp = new Float64Array(12);   // energía espectral por clase
   const cuadrosConNota = [];                // cuadros con pitch detectado
+  const fftRe = new Float32Array(TAM_FFT);
+  const fftIm = new Float32Array(TAM_FFT);
+  const magnitudes = new Float32Array(TAM_FFT / 2);
   let framesTotal = 0;
 
   /* Recorremos la señal con ventanas superpuestas */
@@ -62,7 +66,7 @@ function analizar(pcm, sr) {
     const cuadro = pcm.subarray(i, i + TAM_FFT);
 
     /* --- 1) ESPECTRO POR TRANSFORMADA DE FOURIER --- */
-    analizarEspectro(cuadro, sr, chromaEsp);
+    analizarEspectro(cuadro, sr, chromaEsp, fftRe, fftIm, magnitudes);
 
     /* --- 2) ALTURA TONAL POR AUTOCORRELACIÓN --- */
     const sub = cuadro.subarray(0, TAM_GRAVE);
@@ -150,23 +154,20 @@ function fft(re, im) {
    ESPECTRO DE UN CUADRO -> APC (Análisis de clases de altura)
    Suma la energía de los picos del espectro a su clase cromática.
    --------------------------------------------------------------------------- */
-function analizarEspectro(cuadro, sr, chromaEsp) {
+function analizarEspectro(cuadro, sr, chromaEsp, re, im, mags) {
   const N = cuadro.length;
-  const re = new Float32Array(N);
-  const im = new Float32Array(N);
 
   /* Ventana de Hann (reduce el leakage espectral) */
   for (let i = 0; i < N; i++) {
     const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1));
     re[i] = cuadro[i] * w;
-    im[i] = 0;
   }
+  im.fill(0);
 
   fft(re, im);
 
   /* Magnitudes para k = 0 .. N/2 */
   const M = Math.floor(N / 2);
-  const mags = new Float32Array(M);
   let maxMag = 0;
   for (let k = 3; k < M; k++) {
     mags[k] = Math.hypot(re[k], im[k]);
@@ -194,24 +195,30 @@ function analizarEspectro(cuadro, sr, chromaEsp) {
    pequeños y mitiga el error de octava.
    --------------------------------------------------------------------------- */
 function detectarPitch(cuadro, sr) {
-  const N = cuadro.length;
+  const N = Math.floor(cuadro.length / FACTOR_PITCH);
 
-  /* RMS: descartar cuadros silenciosos */
-  let rms = 0;
-  for (let i = 0; i < N; i++) rms += cuadro[i] * cuadro[i];
+  /* Promediar bloques reduce la frecuencia de muestreo para acelerar la correlación. */
+  const x = new Float64Array(N);
+  let rms = 0, media = 0;
+  for (let i = 0; i < N; i++) {
+    let muestra = 0;
+    for (let j = 0; j < FACTOR_PITCH; j++) {
+      muestra += cuadro[i * FACTOR_PITCH + j];
+    }
+    x[i] = muestra / FACTOR_PITCH;
+    media += x[i];
+    rms += x[i] * x[i];
+  }
   rms = Math.sqrt(rms / N);
   if (rms < 0.004) return null;
 
   /* Eliminar componente DC */
-  let media = 0;
-  for (let i = 0; i < N; i++) media += cuadro[i];
   media /= N;
+  for (let i = 0; i < N; i++) x[i] -= media;
 
-  const x = new Float64Array(N);
-  for (let i = 0; i < N; i++) x[i] = cuadro[i] - media;
-
-  const lagMin = Math.max(2, Math.floor(sr / NOTA_MAX_HZ));
-  const lagMax = Math.min(Math.floor(sr / NOTA_MIN_HZ), N - 2);
+  const srReducido = sr / FACTOR_PITCH;
+  const lagMin = Math.max(2, Math.floor(srReducido / NOTA_MAX_HZ));
+  const lagMax = Math.min(Math.floor(srReducido / NOTA_MIN_HZ), N - 2);
 
   /* Sumas acumuladas de energía para normalizar O(1) por lag */
   const pref = new Float64Array(N + 1);
@@ -251,7 +258,7 @@ function detectarPitch(cuadro, sr) {
   const delta = Math.abs(denom) > 1e-12 ? (0.5 * (y0 - y2)) / denom : 0;
   const lagFino = bestLag + Math.max(-0.5, Math.min(0.5, delta));
 
-  const f0 = sr / lagFino;
+  const f0 = srReducido / lagFino;
   if (f0 < NOTA_MIN_HZ || f0 > NOTA_MAX_HZ) return null;
   return { f0 };
 }
