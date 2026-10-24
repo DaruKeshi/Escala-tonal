@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reconocedor de Escalas Tonales</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>🎼 Reconocedor de Escalas Tonales</h1>
+    <p>
+      Analiza un sonido y determina su escala tonal. El procesamiento pesado
+      (Transformada de Fourier + Autocorrelación) se ejecuta en un
+      <strong>Web Worker</strong>, sin bloquear la interfaz.
+    </p>
+  </header>
+
+  <main>
+    <!-- Fuente 1: Micrófono -->
+    <section class="card">
+      <h2>🎤 1. Sonar con el micrófono</h2>
+      <p>Canta o toca la escala (do, re, mi…) y detén la grabación.</p>
+      <div class="botones">
+        <button id="btnMic">Iniciar grabación</button>
+        <button id="btnDetener" disabled>Detener y analizar</button>
+      </div>
+      <div id="micEstado" class="estado">Micrófono inactivo.</div>
+    </section>
+
+    <!-- Fuente 2: Archivo -->
+    <section class="card">
+      <h2>📁 2. Cargar un archivo de audio</h2>
+      <p>Sube un WAV, MP3 u OGG con la escala grabada.</p>
+      <input type="file" id="inputArchivo" accept="audio/*" />
+    </section>
+
+    <!-- Fuente 3: Escala de prueba -->
+    <section class="card">
+      <h2>🎹 3. Generar escala de prueba</h2>
+      <p>
+        El sistema sintetiza una escala aleatoria (que no te revela), la
+        graba internamente y la analiza. Ideal para demostrar que el
+        algoritmo acierta.
+      </p>
+      <label for="selModo">Tipo de escala a generar: </label>
+      <select id="selModo">
+        <option value="aleatoria">Aleatoria</option>
+        <option value="mayor">Mayor</option>
+        <option value="menor">Menor</option>
+      </select>
+      <div class="botones">
+        <button id="btnPrueba">Generar y analizar</button>
+      </div>
+    </section>
+
+    <!-- Resultados -->
+    <section class="card resultado" id="cardResultado" hidden>
+      <h2>🎯 Resultado del análisis</h2>
+
+      <div class="escala-detectada">
+        <span id="nombreEscala">—</span>
+        <span id="confianza" class="confianza"></span>
+      </div>
+
+      <div id="notasEscala" class="chips"></div>
+
+      <h3>🎵 Notas que reconocimos en tu interpretación (en orden)</h3>
+      <div id="notasDetectadas" class="chips"></div>
+      <p class="hint">Cada chip es un segmento sonado identificado por autocorrelación: nota + octava.</p>
+
+      <h3>Histograma de clases de altura (cromático)</h3>
+      <canvas id="canvasHist" width="720" height="220"></canvas>
+
+      <h3>Forma de onda analizada</h3>
+      <canvas id="canvasOnda" width="720" height="120"></canvas>
+
+      <h3>Notas detectadas por segmentos</h3>
+      <div class="tabla-scroll">
+        <table id="tablaSegmentos">
+          <thead>
+            <tr><th>Tiempo (s)</th><th>Nota</th><th>Octava</th><th>Frecuencia (Hz)</th><th>Desviación (cents)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5">Sin datos todavía.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Registro -->
+    <section class="card">
+      <h2>🧾 Registro de proceso</h2>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Técnicas: <em>Transformada rápida de Fourier (FFT)</em> — contenido
+      espectral · <em>Autocorrelación normalizada</em> — altura tonal (f0) ·
+      <em>Web Audio API</em> — captura, síntesis y decodificación ·
+      <em>Web Worker</em> — procesamiento en un hilo aparte.
+    </p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
